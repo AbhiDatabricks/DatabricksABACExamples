@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Column Masking Strategies with ABAC · Databricks ABAC Tutorials</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .blog-post { max-width: 780px; margin: 0 auto; padding: 2.5rem 2rem 5rem; }
+    .post-header { margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+    .post-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent3); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .post-label::before { content: ''; width: 24px; height: 1px; background: var(--accent3); }
+    .post-title { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--text); margin-bottom: 1rem; }
+    .post-desc { font-size: 1.05rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 1.5rem; }
+    .post-meta { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+    .post-meta-item { font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.4rem; }
+
+    .prose h2 { margin-top: 3rem; margin-bottom: 1rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .prose h2:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+    .prose h3 { margin-top: 2rem; margin-bottom: 0.75rem; color: var(--text); }
+    .prose p { margin-bottom: 1.1rem; }
+    .prose ul, .prose ol { padding-left: 1.5rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .prose li { margin-bottom: 0.35rem; font-size: 0.95rem; }
+
+    .output-block {
+      background: #020508; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.25rem 1.5rem; margin: 1rem 0;
+      font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.7;
+      color: #7dd3a8; overflow-x: auto;
+    }
+    .output-block .out-header { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+    .output-block .out-row { white-space: pre; }
+    .output-block .out-sep { color: var(--text-dim); }
+    .masked { color: #fb923c; }
+
+    .step-grid { display: flex; flex-direction: column; gap: 0; }
+    .step-item { display: grid; grid-template-columns: 48px 1fr; gap: 1.25rem; padding-bottom: 2.5rem; }
+    .step-item:last-child { padding-bottom: 0; }
+    .step-num-col { display: flex; flex-direction: column; align-items: center; }
+    .step-circle {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(124,106,247,0.1); border: 2px solid rgba(124,106,247,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--accent3);
+      flex-shrink: 0; z-index: 1;
+    }
+    .step-connector { width: 1px; flex: 1; background: var(--border); margin-top: 0.5rem; }
+    .step-item:last-child .step-connector { display: none; }
+    .step-content h3 { padding-top: 0.4rem; color: var(--text); margin-bottom: 0.6rem; }
+
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.25rem 0; }
+    @media (max-width: 540px) { .comparison-grid { grid-template-columns: 1fr; } }
+    .comparison-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+    .comparison-card h4 { font-size: 0.72rem; margin-bottom: 0.5rem; }
+    .comparison-card .val { font-family: var(--font-mono); font-size: 0.82rem; padding: 0.5rem 0.75rem; border-radius: 4px; margin-top: 0.4rem; }
+    .comparison-card .val-before { background: rgba(255,255,255,0.04); color: var(--text-muted); }
+    .comparison-card .val-after { background: rgba(124,106,247,0.08); color: var(--accent3); }
+
+    .role-table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="index.html">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.78 3.97a.75.75 0 010 1.06L7.81 7l1.97 1.97a.75.75 0 11-1.06 1.06L6.22 7.53a.75.75 0 010-1.06l2.5-2.5a.75.75 0 011.06 0z"/></svg>
+        All Tutorials
+      </a>
+      <span class="nav-title">Tutorial 02 · Column Masking</span>
+    </div>
+  </nav>
+
+  <main>
+    <div class="blog-post">
+      <header class="post-header">
+        <div class="post-label">Tutorial 02 · Column Masking</div>
+        <h1 class="post-title">Column Masking Strategies<br>with ABAC</h1>
+        <p class="post-desc">
+          Master six column masking techniques using Databricks ABAC — from simple PII redaction
+          to VARIANT and STRUCT masking, SHA2 pseudonymization, and production-grade PCI-DSS
+          and HIPAA PHI masking patterns. All policies are tag-driven and schema-scoped.
+        </p>
+        <div class="post-meta">
+          <span class="post-meta-item"><span>📦</span> Databricks Runtime 16.4+</span>
+          <span class="post-meta-item"><span>🏷️</span> Unity Catalog</span>
+          <span class="post-meta-item"><span>🔒</span> PCI-DSS · HIPAA</span>
+        </div>
+      </header>
+
+      <div class="prose">
+
+        <h2>How Column Masking Works</h2>
+        <p>
+          A column mask policy attaches a <strong>mask function</strong> to columns matching a tag condition.
+          When a non-exempt user queries the table, the function is called with the column value and
+          its return replaces the real value — transparently, at query time.
+        </p>
+        <div class="callout danger">
+          <span class="callout-icon">🚨</span>
+          <div class="callout-body">
+            <h4>Critical: Return Type Must Match Column Type</h4>
+            <p>The mask function <strong>must return the same data type as the column</strong>.
+            A mask on a <code>DATE</code> column must return <code>DATE</code>.
+            A mask on a <code>DOUBLE</code> column must return <code>DOUBLE</code>.
+            Returning <code>STRING</code> from a <code>DATE</code> column causes a cast error at query time.</p>
+          </div>
+        </div>
+        <div class="callout warning">
+          <span class="callout-icon">⚠️</span>
+          <div class="callout-body">
+            <h4>EXCEPT only works in CREATE POLICY</h4>
+            <p><code>ALTER TABLE ... SET MASK function EXCEPT group</code> is <strong>not valid syntax</strong>.
+            Use <code>CREATE COLUMN MASK POLICY ... EXCEPT group</code> for admin bypass.</p>
+          </div>
+        </div>
+
+        <h2>Prerequisites</h2>
+        <div class="prereq-grid">
+          <div class="prereq-item">
+            <h4>Governed Tags</h4>
+            <ul>
+              <li>abac_tut_pii (ssn, email, name, phone, address)</li>
+              <li>abac_tut_sensitivity (internal, confidential)</li>
+              <li>pci_data (credit_card, ssn, income)</li>
+              <li>phi_level (name, dob, id, contact, diagnosis)</li>
+            </ul>
+          </div>
+          <div class="prereq-item">
+            <h4>Account Groups</h4>
+            <ul>
+              <li>abac_tut_admins</li>
+              <li>abac_tut_hr_team</li>
+              <li>abac_tut_finance_team</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2>6-Step Core Tutorial</h2>
+
+        <div class="step-grid">
+
+          <div class="step-item">
+            <div class="step-num-col">
+              <div class="step-circle">1</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content">
+              <h3>Basic String Redaction</h3>
+              <p>The simplest mask — replace any PII-tagged column value with a fixed string.
+              The policy uses <code>has_tag()</code> to catch all PII columns in one shot.</p>
+              <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+                <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.redact</span>(<span class="nn">val</span> <span class="kw">STRING</span>)
+<span class="kw">RETURNS STRING</span>
+<span class="kw">RETURN</span> <span class="str">'***REDACTED***'</span>
+
+<span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">redact_pii</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">COLUMN MASK</span> <span class="fn">{catalog}.{schema}.redact</span>
+<span class="kw">TO</span> <span class="str">`account users`</span>
+<span class="kw">EXCEPT</span> abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag</span>(<span class="str">'abac_tut_pii'</span>) <span class="kw">AS</span> m
+<span class="kw">ON COLUMN</span> m</pre></div>
+              </div>
+              <div class="comparison-grid">
+                <div class="comparison-card"><h4>Admin sees</h4><div class="val val-before">alice@example.com</div><div class="val val-before">123-45-6789</div></div>
+                <div class="comparison-card"><h4>Non-admin sees</h4><div class="val val-after">***REDACTED***</div><div class="val val-after">***REDACTED***</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num-col">
+              <div class="step-circle">2</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content">
+              <h3>Partial Reveal — SSN Last 4</h3>
+              <p>Show only the last 4 digits of SSN. Useful when users need to verify identity
+              without exposing the full value. Drop <code>redact_pii</code> first to avoid conflict.</p>
+              <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+                <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.mask_ssn</span>(<span class="nn">val</span> <span class="kw">STRING</span>)
+<span class="kw">RETURNS STRING</span>
+<span class="kw">RETURN</span> <span class="fn">CONCAT</span>(<span class="str">'***-**-'</span>, <span class="fn">RIGHT</span>(val, <span class="str">4</span>))</pre></div>
+              </div>
+              <div class="comparison-grid">
+                <div class="comparison-card"><h4>Before</h4><div class="val val-before">123-45-6789</div></div>
+                <div class="comparison-card"><h4>After</h4><div class="val val-after">***-**-6789</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num-col">
+              <div class="step-circle">3</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content">
+              <h3>SHA2 Pseudonymization</h3>
+              <p>SHA2 hashing produces a <strong>consistent masked value</strong> per input — the same email
+              always hashes to the same token. This preserves referential integrity for analytics
+              while preventing reverse-lookup of real values.</p>
+              <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+                <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.pseudonymize</span>(<span class="nn">val</span> <span class="kw">STRING</span>)
+<span class="kw">RETURNS STRING</span>
+<span class="kw">RETURN</span> <span class="fn">SHA2</span>(val, <span class="str">256</span>)</pre></div>
+              </div>
+              <div class="comparison-grid">
+                <div class="comparison-card"><h4>Before</h4><div class="val val-before">alice@example.com</div></div>
+                <div class="comparison-card"><h4>After</h4><div class="val val-after">a948904f2f0f479b...</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num-col">
+              <div class="step-circle">4</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content">
+              <h3>VARIANT Column Masking</h3>
+              <p>VARIANT columns can't be matched by tag in <code>ALTER TABLE SET MASK</code>.
+              The solution: tag the column, then use a schema-level policy with <code>has_tag_value()</code>.</p>
+              <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+                <div class="code-body"><pre><span class="cm">-- 1. Tag the column</span>
+<span class="kw">ALTER TABLE</span> <span class="nn">{catalog}.{schema}.employees</span>
+  <span class="kw">ALTER COLUMN</span> metadata <span class="kw">SET TAGS</span> (<span class="str">'abac_tut_sensitivity'</span> <span class="op">=</span> <span class="str">'internal'</span>)
+
+<span class="cm">-- 2. Simple mask function — returns STRING VARIANT for any input type</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.flexible_mask</span>(<span class="nn">val</span> <span class="kw">VARIANT</span>)
+<span class="kw">RETURNS VARIANT</span>
+<span class="kw">RETURN</span> <span class="fn">parse_json</span>(<span class="str">'"***"'</span>)
+
+<span class="cm">-- 3. Schema policy using the tag</span>
+<span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">flexible_mask_metadata</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">COLUMN MASK</span> <span class="fn">{catalog}.{schema}.flexible_mask</span>
+<span class="kw">TO</span> <span class="str">`account users`</span>
+<span class="kw">EXCEPT</span> abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag_value</span>(<span class="str">'abac_tut_sensitivity'</span>, <span class="str">'internal'</span>) <span class="kw">AS</span> m
+<span class="kw">ON COLUMN</span> m</pre></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num-col">
+              <div class="step-circle">5</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content">
+              <h3>STRUCT Column Masking</h3>
+              <p>STRUCT columns can be masked at the field level while preserving the structure.
+              Use <code>ALTER TABLE ... SET MASK</code> directly — no tag needed for a single known column.</p>
+              <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+                <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.mask_contact_info</span>(
+  <span class="nn">val</span> <span class="kw">STRUCT</span>&lt;primary_email:<span class="kw">STRING</span>, secondary_email:<span class="kw">STRING</span>, phone:<span class="kw">STRING</span>&gt;
+)
+<span class="kw">RETURNS STRUCT</span>&lt;primary_email:<span class="kw">STRING</span>, secondary_email:<span class="kw">STRING</span>, phone:<span class="kw">STRING</span>&gt;
+<span class="kw">RETURN</span> <span class="fn">named_struct</span>(
+  <span class="str">'primary_email'</span>,   <span class="str">'***REDACTED***'</span>,
+  <span class="str">'secondary_email'</span>,  <span class="str">'***REDACTED***'</span>,
+  <span class="str">'phone'</span>,            <span class="fn">CONCAT</span>(<span class="str">'***-'</span>, <span class="fn">RIGHT</span>(val.phone, <span class="str">4</span>))
+)
+
+<span class="kw">ALTER TABLE</span> <span class="nn">{catalog}.{schema}.employees</span>
+  <span class="kw">ALTER COLUMN</span> contact_info <span class="kw">SET MASK</span> <span class="fn">{catalog}.{schema}.mask_contact_info</span></pre></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num-col">
+              <div class="step-circle">6</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content">
+              <h3>Combining Multiple Policies</h3>
+              <p>Different mask strategies for different PII types — all active simultaneously.
+              Each policy targets a specific tag value, so they apply to different columns with no conflict.</p>
+              <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+                <div class="code-body"><pre><span class="cm">-- SSN: last-4 reveal  (abac_tut_pii = 'ssn')</span>
+<span class="cm">-- Email: SHA2 hash    (abac_tut_pii = 'email')</span>
+<span class="cm">-- Name/phone/address: full redact (OR condition)</span>
+<span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">redact_other_pii</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">COLUMN MASK</span> <span class="fn">{catalog}.{schema}.redact</span>
+<span class="kw">TO</span> <span class="str">`account users`</span>
+<span class="kw">EXCEPT</span> abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> (<span class="fn">has_tag_value</span>(<span class="str">'abac_tut_pii'</span>, <span class="str">'name'</span>)
+  <span class="op">OR</span> <span class="fn">has_tag_value</span>(<span class="str">'abac_tut_pii'</span>, <span class="str">'phone'</span>)
+  <span class="op">OR</span> <span class="fn">has_tag_value</span>(<span class="str">'abac_tut_pii'</span>, <span class="str">'address'</span>)) <span class="kw">AS</span> m
+<span class="kw">ON COLUMN</span> m</pre></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- end step-grid -->
+
+        <hr class="divider">
+
+        <div class="industry-header">
+          <span class="industry-icon">💳</span>
+          <div>
+            <h2 style="border:none;padding:0;margin:0;">Financial Services — PCI-DSS</h2>
+            <p>Payment Card Industry Data Security Standard compliant column masking</p>
+          </div>
+        </div>
+
+        <p>The PCI-DSS section creates a <code>credit_accounts</code> table with sensitive financial columns
+        tagged using the <code>pci_data</code> governed tag.</p>
+
+        <h3>Credit card tokenization</h3>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.mask_credit_card</span>(<span class="nn">val</span> <span class="kw">STRING</span>)
+<span class="kw">RETURNS STRING</span>
+<span class="kw">RETURN</span> <span class="fn">CONCAT</span>(<span class="str">'****-****-****-'</span>, <span class="fn">RIGHT</span>(val, <span class="str">4</span>))</pre></div>
+        </div>
+
+        <h3>Expected output (non-admin user)</h3>
+        <div class="output-block">
+          <div class="out-header">SELECT account_id, customer_name, credit_card_number, ssn, income FROM credit_accounts</div>
+<div class="out-row out-sep">+----------+----------------+----------------------+-----------+--------+</div>
+<div class="out-row">|account_id|customer_name   |credit_card_number    |ssn        |income  |</div>
+<div class="out-row out-sep">+----------+----------------+----------------------+-----------+--------+</div>
+<div class="out-row">|1001      |<span class="masked">***REDACTED***</span>  |<span class="masked">****-****-****-9010</span>  |<span class="masked">XXX-XX-6789</span>|<span class="masked">0.0</span>     |</div>
+<div class="out-row">|1002      |<span class="masked">***REDACTED***</span>  |<span class="masked">****-****-****-4532</span>  |<span class="masked">XXX-XX-4321</span>|<span class="masked">0.0</span>     |</div>
+<div class="out-row out-sep">+----------+----------------+----------------------+-----------+--------+</div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="industry-header">
+          <span class="industry-icon">🏥</span>
+          <div>
+            <h2 style="border:none;padding:0;margin:0;">Healthcare — HIPAA PHI</h2>
+            <p>45 CFR § 164.514(b) Safe Harbor de-identification for patient records</p>
+          </div>
+        </div>
+
+        <p>HIPAA's Safe Harbor method requires removing 18 categories of PHI.
+        The <code>patient_records</code> table is tagged with <code>phi_level</code> values, and four policies
+        apply different masking strategies per PHI category.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column</th><th>Tag</th><th>Mask Applied</th><th>Example Output</th></tr></thead>
+            <tbody>
+              <tr><td><code>patient_name</code></td><td>phi_level = name</td><td>First initial + ****</td><td><code>A****</code></td></tr>
+              <tr><td><code>dob</code></td><td>phi_level = dob</td><td>Sentinel date</td><td><code>1900-01-01</code></td></tr>
+              <tr><td><code>ssn</code></td><td>phi_level = id</td><td>SHA2 hash prefix</td><td><code>ID-01a54629efb9...</code></td></tr>
+              <tr><td><code>insurance_id</code></td><td>phi_level = id</td><td>SHA2 hash prefix</td><td><code>ID-4ac41bb0e86d...</code></td></tr>
+              <tr><td><code>address</code></td><td>phi_level = contact</td><td>Full redaction</td><td><code>***PHI-REDACTED***</code></td></tr>
+              <tr><td><code>diagnosis</code></td><td>phi_level = diagnosis</td><td>Full redaction</td><td><code>***PHI-REDACTED***</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Expected results by role</h3>
+        <div class="output-block">
+          <div class="out-header">SELECT patient_id, patient_name, dob, ssn, diagnosis FROM patient_records</div>
+<div class="out-row out-sep">+----------+--------------+----------+------------------+------------------+</div>
+<div class="out-row">|patient_id|patient_name  |dob       |ssn               |diagnosis         |</div>
+<div class="out-row out-sep">+----------+--------------+----------+------------------+------------------+</div>
+<div class="out-row"><span style="color:var(--text-dim)">-- abac_tut_admins sees:</span></div>
+<div class="out-row">|1001      |Alice Brown   |1985-03-12|123-45-6789       |Type 2 Diabetes   |</div>
+<div class="out-row"><span style="color:var(--text-dim)">-- Non-admin sees:</span></div>
+<div class="out-row">|1001      |<span class="masked">A****</span>         |<span class="masked">1900-01-01</span>|<span class="masked">ID-01a54629efb95</span>  |<span class="masked">***PHI-REDACTED***</span>|</div>
+<div class="out-row out-sep">+----------+--------------+----------+------------------+------------------+</div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="callout success">
+          <span class="callout-icon">✅</span>
+          <div class="callout-body">
+            <h4>Key Learnings</h4>
+            <ul>
+              <li><strong>Mask function return type must match the column type</strong> — returning <code>STRING</code> from a <code>DATE</code> or <code>DOUBLE</code> column throws a cast error.</li>
+              <li><strong><code>EXCEPT</code> only works in <code>CREATE POLICY</code></strong> — not in <code>ALTER TABLE ... SET MASK</code>.</li>
+              <li><strong><code>MATCH COLUMNS</code> requires <code>has_tag()</code> or <code>has_tag_value()</code></strong> — column name comparison (<code>name = 'col'</code>) is not allowed.</li>
+              <li><strong>Drop previous step's policies</strong> before the next step to avoid multiple-masks-on-same-column errors.</li>
+              <li><strong>For VARIANT columns</strong>: tag the column, use a schema-level policy with <code>has_tag_value()</code>.</li>
+              <li><strong>For STRUCT columns</strong>: use <code>ALTER TABLE ... SET MASK</code> directly (note: no admin <code>EXCEPT</code> support here).</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><a href="tutorial1.html">← Row Filtering</a> &nbsp;·&nbsp; <a href="index.html">All Tutorials</a> &nbsp;·&nbsp; <a href="https://github.com/AbhiDatabricks/DatabricksABACExamples" target="_blank">GitHub</a></p>
+    </div>
+  </footer>
+</body>
+</html>

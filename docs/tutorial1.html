@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Row Filtering Patterns with ABAC · Databricks ABAC Tutorials</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .blog-post { max-width: 780px; margin: 0 auto; padding: 2.5rem 2rem 5rem; }
+    .post-header { margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+    .post-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .post-label::before { content: ''; width: 24px; height: 1px; background: var(--accent); }
+    .post-title { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--text); margin-bottom: 1rem; }
+    .post-desc { font-size: 1.05rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 1.5rem; }
+    .post-meta { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+    .post-meta-item { font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.4rem; }
+
+    .prose h2 { margin-top: 3rem; margin-bottom: 1rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .prose h2:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+    .prose h3 { margin-top: 2rem; margin-bottom: 0.75rem; color: var(--text); }
+    .prose p { margin-bottom: 1.1rem; }
+    .prose ul, .prose ol { padding-left: 1.5rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .prose li { margin-bottom: 0.35rem; font-size: 0.95rem; }
+
+    .output-block {
+      background: #020508; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.25rem 1.5rem; margin: 1rem 0;
+      font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.7;
+      color: #7dd3a8; overflow-x: auto;
+    }
+    .output-block .out-header { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+    .output-block .out-row { white-space: pre; }
+    .output-block .out-sep { color: var(--text-dim); }
+
+    .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin: 1.25rem 0; }
+    .role-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+    .role-card .role-name { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); margin-bottom: 0.4rem; display: block; }
+    .role-card .role-sees { font-size: 0.82rem; color: var(--text); font-weight: 600; }
+    .role-card .role-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .role-card.admin { border-color: rgba(34,211,160,0.3); }
+    .role-card.limited { border-color: rgba(0,212,200,0.2); }
+    .role-card.denied { border-color: rgba(248,113,113,0.2); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="index.html">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.78 3.97a.75.75 0 010 1.06L7.81 7l1.97 1.97a.75.75 0 11-1.06 1.06L6.22 7.53a.75.75 0 010-1.06l2.5-2.5a.75.75 0 011.06 0z"/></svg>
+        All Tutorials
+      </a>
+      <span class="nav-title">Tutorial 01 · Row Filtering</span>
+    </div>
+  </nav>
+
+  <main>
+    <div class="blog-post">
+      <header class="post-header">
+        <div class="post-label">Tutorial 01 · Row Filtering</div>
+        <h1 class="post-title">Row Filtering Patterns<br>with ABAC</h1>
+        <p class="post-desc">
+          Learn how to filter table rows based on user group membership and governed tags in Databricks Unity Catalog.
+          This tutorial covers regional access control, healthcare time-based filters, emergency access overrides,
+          and fraud detection patterns — all without writing a single line of per-table access logic.
+        </p>
+        <div class="post-meta">
+          <span class="post-meta-item"><span>📦</span> Databricks Runtime 16.4+</span>
+          <span class="post-meta-item"><span>🏷️</span> Requires Unity Catalog</span>
+          <span class="post-meta-item"><span>👥</span> Account-level groups</span>
+        </div>
+      </header>
+
+      <div class="prose">
+
+        <h2>What is ABAC Row Filtering?</h2>
+        <p>
+          ABAC (Attribute-Based Access Control) row filtering lets you attach <strong>policies to a schema</strong>
+          rather than individual tables. A policy says: <em>"for tables whose columns are tagged X,
+          apply filter function F to group G."</em> When a new table gets the tag, it automatically
+          inherits the policy — no ALTER TABLE needed.
+        </p>
+        <div class="callout info">
+          <span class="callout-icon">💡</span>
+          <div class="callout-body">
+            <h4>Key Principle</h4>
+            <p>UDFs contain only <strong>data logic</strong> (e.g. <code>region_val = 'us'</code>).
+            Group membership logic belongs in the <strong>POLICY</strong> using <code>TO group</code> and <code>EXCEPT group</code>.
+            Never put <code>is_account_group_member()</code> inside a UDF — it causes per-row identity lookups.</p>
+          </div>
+        </div>
+
+        <h2>Prerequisites</h2>
+        <div class="prereq-grid">
+          <div class="prereq-item">
+            <h4>Account Groups</h4>
+            <ul>
+              <li>abac_tut_admins</li>
+              <li>abac_tut_us_team</li>
+              <li>abac_tut_eu_team</li>
+              <li>abac_tut_apac_team</li>
+              <li>abac_tut_hr_team</li>
+              <li>abac_tut_finance_team</li>
+            </ul>
+          </div>
+          <div class="prereq-item">
+            <h4>Governed Tags</h4>
+            <ul>
+              <li>abac_tut_region</li>
+              <li>abac_tut_pii</li>
+              <li>abac_tut_emergency</li>
+            </ul>
+          </div>
+          <div class="prereq-item">
+            <h4>Privileges Needed</h4>
+            <ul>
+              <li>CREATE FUNCTION</li>
+              <li>CREATE TABLE</li>
+              <li>APPLY TAG</li>
+              <li>MANAGE POLICY</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2>Core Pattern</h2>
+        <p>Every row filter is built with two components: a <strong>UDF</strong> that contains the filter logic,
+        and a <strong>POLICY</strong> that wires the UDF to a group and a tag condition.</p>
+
+        <h3>Step 1 — Write the filter UDF</h3>
+        <p>The UDF takes the column value and returns <code>BOOLEAN</code>. Pure data logic only.</p>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.region_filter_us</span>(<span class="nn">region_val</span> <span class="kw">STRING</span>)
+<span class="kw">RETURNS BOOLEAN</span>
+<span class="kw">DETERMINISTIC</span>
+<span class="kw">RETURN</span> region_val <span class="op">=</span> <span class="str">'us'</span></pre></div>
+        </div>
+
+        <h3>Step 2 — Create the policy</h3>
+        <p>The policy binds the UDF to a group (<code>TO</code>), defines which columns to apply it to
+        (<code>MATCH COLUMNS has_tag()</code>), and specifies which column to pass to the UDF
+        (<code>USING COLUMNS</code>).</p>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">region_row_filter_us_policy</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">ROW FILTER</span> <span class="fn">{catalog}.{schema}.region_filter_us</span>
+<span class="kw">TO</span> abac_tut_us_team
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag</span>(<span class="str">'abac_tut_region'</span>) <span class="kw">AS</span> region_col
+<span class="kw">USING COLUMNS</span> (region_col)</pre></div>
+        </div>
+        <p>A companion deny policy ensures users not in any regional group see zero rows:</p>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">region_row_filter_deny_policy</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">ROW FILTER</span> <span class="fn">{catalog}.{schema}.deny_all_filter</span>
+<span class="kw">TO</span> <span class="str">`account users`</span>
+<span class="kw">EXCEPT</span> abac_tut_us_team, abac_tut_eu_team, abac_tut_apac_team, abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag</span>(<span class="str">'abac_tut_region'</span>) <span class="kw">AS</span> region_col
+<span class="kw">USING COLUMNS</span> (region_col)</pre></div>
+        </div>
+
+        <h2>Who Sees What</h2>
+        <div class="role-grid">
+          <div class="role-card admin">
+            <span class="role-name">abac_tut_admins</span>
+            <div class="role-sees td-yes">All rows</div>
+            <div class="role-desc">Exempt from all regional filters</div>
+          </div>
+          <div class="role-card limited">
+            <span class="role-name">abac_tut_us_team</span>
+            <div class="role-sees td-partial">US region only</div>
+            <div class="role-desc">region = 'us'</div>
+          </div>
+          <div class="role-card limited">
+            <span class="role-name">abac_tut_eu_team</span>
+            <div class="role-sees td-partial">EU region only</div>
+            <div class="role-desc">region = 'eu'</div>
+          </div>
+          <div class="role-card limited">
+            <span class="role-name">abac_tut_apac_team</span>
+            <div class="role-sees td-partial">APAC only</div>
+            <div class="role-desc">region = 'apac'</div>
+          </div>
+          <div class="role-card denied">
+            <span class="role-name">No group</span>
+            <div class="role-sees td-no">0 rows</div>
+            <div class="role-desc">Deny policy applies</div>
+          </div>
+        </div>
+
+        <h3>Sample output (US team user)</h3>
+        <div class="output-block">
+          <div class="out-header">Query result — SELECT * FROM customers</div>
+<div class="out-row out-sep">+----+------------------+------+------------------+</div>
+<div class="out-row">|id  |name              |region|email             |</div>
+<div class="out-row out-sep">+----+------------------+------+------------------+</div>
+<div class="out-row">|1   |Alice Johnson     |us    |alice@example.com |</div>
+<div class="out-row">|4   |Diana Prince      |us    |diana@example.com |</div>
+<div class="out-row">|7   |George Washington |us    |george@example.com|</div>
+<div class="out-row out-sep">+----+------------------+------+------------------+</div>
+<div class="out-row" style="color:var(--text-dim)">3 rows (12 total — 9 filtered by ABAC policy)</div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="industry-header">
+          <span class="industry-icon">🏥</span>
+          <div>
+            <h2 style="border:none;padding:0;margin:0;">Healthcare — Time-Based &amp; Emergency Access</h2>
+            <p>HIPAA-aligned row filtering with business hours, on-call overrides, and regional routing</p>
+          </div>
+        </div>
+
+        <p>The healthcare example introduces three advanced row filter patterns on a <code>hospital_visits</code> table:</p>
+
+        <h3>Business hours filter</h3>
+        <p>Restricts access to 7AM–7PM Monday–Friday for standard staff:</p>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.business_hours_filter</span>()
+<span class="kw">RETURNS BOOLEAN</span>
+<span class="kw">RETURN</span> (
+  <span class="fn">HOUR</span>(<span class="fn">CURRENT_TIMESTAMP</span>()) <span class="op">BETWEEN</span> <span class="str">7</span> <span class="op">AND</span> <span class="str">19</span>
+  <span class="op">AND</span> <span class="fn">DAYOFWEEK</span>(<span class="fn">CURRENT_DATE</span>()) <span class="op">BETWEEN</span> <span class="str">2</span> <span class="op">AND</span> <span class="str">6</span>
+)</pre></div>
+        </div>
+
+        <h3>Emergency override</h3>
+        <p>On-call staff always see emergency visits regardless of hours or region:</p>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">abac_hc_emergency_access</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">ROW FILTER</span> <span class="fn">{catalog}.{schema}.emergency_access_filter</span>
+<span class="kw">TO</span> <span class="str">`account users`</span>
+<span class="kw">EXCEPT</span> abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag</span>(<span class="str">'abac_tut_emergency'</span>) <span class="kw">AS</span> emergency_col
+<span class="kw">USING COLUMNS</span> (emergency_col)</pre></div>
+        </div>
+
+        <div class="callout warning">
+          <span class="callout-icon">⚠️</span>
+          <div class="callout-body">
+            <h4>Policy Isolation</h4>
+            <p>Before adding healthcare policies, drop the general regional policies
+            (<code>region_row_filter_*</code>) — a table can only have <strong>one active row filter</strong>.
+            Multiple schema-level policies that match the same tagged column cause a runtime error.</p>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="industry-header">
+          <span class="industry-icon">🏦</span>
+          <div>
+            <h2 style="border:none;padding:0;margin:0;">Financial Services — Fraud Detection</h2>
+            <p>PCI-DSS and SOX-aligned row filtering for transaction data</p>
+          </div>
+        </div>
+
+        <p>The fraud detection example applies multi-condition row filters on a <code>transactions</code> table
+        tagged with <code>abac_tut_region</code>:</p>
+
+        <h3>Fraud analyst access</h3>
+        <p>Analysts only see flagged transactions (<code>fraud_flag = TRUE</code>), regardless of region.
+        Finance team and admins bypass this filter.</p>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.fraud_row_filter</span>(<span class="nn">fraud_flag</span> <span class="kw">BOOLEAN</span>)
+<span class="kw">RETURNS BOOLEAN</span>
+<span class="kw">RETURN</span> fraud_flag <span class="op">=</span> <span class="kw">TRUE</span>
+
+<span class="cm">-- Policy: apply to all users except finance + admins</span>
+<span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">fraud_detection_filter</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">ROW FILTER</span> <span class="fn">{catalog}.{schema}.fraud_row_filter</span>
+<span class="kw">TO</span> <span class="str">`account users`</span>
+<span class="kw">EXCEPT</span> abac_tut_finance_team, abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag_value</span>(<span class="str">'abac_tut_pii'</span>, <span class="str">'fraud'</span>) <span class="kw">AS</span> fraud_col
+<span class="kw">USING COLUMNS</span> (fraud_col)</pre></div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Role</th><th>Sees</th><th>Reason</th></tr></thead>
+            <tbody>
+              <tr><td class="td-role">abac_tut_admins</td><td class="td-yes">All 10 transactions</td><td>EXCEPT clause</td></tr>
+              <tr><td class="td-role">abac_tut_finance_team</td><td class="td-yes">All 10 transactions</td><td>EXCEPT clause</td></tr>
+              <tr><td class="td-role">abac_tut_us_team</td><td class="td-partial">Fraud-flagged only</td><td>fraud_flag = TRUE filter</td></tr>
+              <tr><td class="td-role">No group</td><td class="td-no">0 rows</td><td>Deny policy applies</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr class="divider">
+
+        <div class="callout success">
+          <span class="callout-icon">✅</span>
+          <div class="callout-body">
+            <h4>Key Learnings</h4>
+            <ul>
+              <li><strong>UDFs = data logic only.</strong> Never use <code>is_account_group_member()</code> in a UDF — use <code>TO</code> / <code>EXCEPT</code> in the POLICY.</li>
+              <li><strong>One active row filter per table.</strong> Drop previous section's policies before creating new ones for the same tagged columns.</li>
+              <li><strong><code>CREATE OR REPLACE POLICY</code> doesn't clean up renamed policies.</strong> Old names accumulate and conflict — always DROP explicitly.</li>
+              <li><strong>Catalog-level policies</strong> auto-apply to new schemas, not just the current one.</li>
+              <li><strong>MATCH COLUMNS only allows <code>has_tag()</code> / <code>has_tag_value()</code></strong> — comparison operators like <code>name = 'col'</code> are not supported.</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><a href="index.html">← All Tutorials</a> &nbsp;·&nbsp; <a href="tutorial2.html">Next: Column Masking →</a> &nbsp;·&nbsp; <a href="https://github.com/AbhiDatabricks/DatabricksABACExamples" target="_blank">GitHub</a></p>
+    </div>
+  </footer>
+</body>
+</html>

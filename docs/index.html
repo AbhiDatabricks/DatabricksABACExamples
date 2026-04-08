@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Databricks ABAC Tutorials</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .blog-list { display: flex; flex-direction: column; gap: 1.5rem; margin-top: 2.5rem; }
+    .blog-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 2rem 2.5rem;
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 1.5rem; align-items: center;
+      text-decoration: none; color: inherit;
+      transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+      position: relative; overflow: hidden;
+    }
+    .blog-card::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, rgba(0,212,200,0.03) 0%, transparent 70%);
+      opacity: 0; transition: opacity var(--transition);
+    }
+    .blog-card:hover { border-color: var(--accent-dim); transform: translateX(4px); box-shadow: var(--shadow-accent); }
+    .blog-card:hover::after { opacity: 1; }
+    .blog-card:hover .blog-arrow { transform: translateX(6px); color: var(--accent); }
+    .blog-meta { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
+    .blog-num { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; color: var(--accent); text-transform: uppercase; }
+    .blog-date { font-size: 0.78rem; color: var(--text-dim); }
+    .blog-card h2 { font-size: 1.25rem; color: var(--text); margin-bottom: 0.5rem; }
+    .blog-card p { font-size: 0.9rem; color: var(--text-muted); margin: 0 0 1rem; }
+    .blog-arrow { color: var(--text-dim); font-size: 1.4rem; transition: transform var(--transition), color var(--transition); align-self: center; }
+    @media (max-width: 540px) { .blog-card { grid-template-columns: 1fr; } .blog-arrow { display: none; } }
+
+    .stats-row { display: flex; gap: 2rem; margin: 3rem 0 1rem; padding: 1.5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .stat-item { text-align: center; }
+    .stat-val { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; color: var(--accent); display: block; }
+    .stat-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .intro-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 2rem 0; }
+    .intro-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .intro-item .icon { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    .intro-item h4 { font-size: 0.8rem; color: var(--text); margin-bottom: 0.25rem; }
+    .intro-item p { font-size: 0.8rem; margin: 0; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <span class="dot"></span>
+        Databricks ABAC Tutorials
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="hero container">
+      <div class="hero-badge fade-up fade-up-1">
+        <span class="pulse"></span>
+        Unity Catalog · Attribute-Based Access Control
+      </div>
+      <h1 class="fade-up fade-up-2">
+        Fine-Grained Access Control<br>
+        <span class="highlight">With Databricks ABAC</span>
+      </h1>
+      <p class="hero-subtitle fade-up fade-up-3">
+        A hands-on series covering row filtering, column masking, and tag-driven data governance
+        using Unity Catalog's Attribute-Based Access Control.
+      </p>
+    </div>
+
+    <div class="container">
+      <div class="stats-row fade-up fade-up-4">
+        <div class="stat-item">
+          <span class="stat-val">2</span>
+          <span class="stat-label">Tutorials</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val">5+</span>
+          <span class="stat-label">Patterns</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val">HIPAA</span>
+          <span class="stat-label">Compliant Examples</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val">PCI-DSS</span>
+          <span class="stat-label">Compliant Examples</span>
+        </div>
+      </div>
+
+      <div class="intro-grid">
+        <div class="intro-item">
+          <div class="icon">🏷️</div>
+          <h4>Tag-Driven Policies</h4>
+          <p>Policies auto-apply to any column tagged with governed tags — no per-table configuration needed.</p>
+        </div>
+        <div class="intro-item">
+          <div class="icon">👥</div>
+          <h4>Group-Based Access</h4>
+          <p>Grant or exempt account groups from policies using <code>TO</code> and <code>EXCEPT</code> clauses.</p>
+        </div>
+        <div class="intro-item">
+          <div class="icon">🔒</div>
+          <h4>Schema-Level Scope</h4>
+          <p>One policy covers all current and future tables in a schema that match the tag condition.</p>
+        </div>
+        <div class="intro-item">
+          <div class="icon">⚡</div>
+          <h4>Zero-ETL Security</h4>
+          <p>No data copies or duplicated tables. Masking and filtering happen at query time.</p>
+        </div>
+      </div>
+
+      <div class="blog-list">
+        <a class="blog-card" href="tutorial1.html">
+          <div>
+            <div class="blog-meta">
+              <span class="blog-num">Tutorial 01</span>
+              <span class="blog-date">Row Filtering</span>
+              <span class="tag accent">ROW FILTER</span>
+            </div>
+            <h2>Row Filtering Patterns with ABAC</h2>
+            <p>
+              Learn how to filter table rows based on user group membership and governed tags.
+              Covers regional access control, healthcare time-based filters, emergency overrides,
+              and fraud detection patterns for financial services.
+            </p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <span class="tag">Regional Access</span>
+              <span class="tag">Healthcare</span>
+              <span class="tag">Fraud Detection</span>
+              <span class="tag orange">PCI-DSS</span>
+            </div>
+          </div>
+          <span class="blog-arrow">→</span>
+        </a>
+
+        <a class="blog-card" href="tutorial2.html">
+          <div>
+            <div class="blog-meta">
+              <span class="blog-num">Tutorial 02</span>
+              <span class="blog-date">Column Masking</span>
+              <span class="tag purple">COLUMN MASK</span>
+            </div>
+            <h2>Column Masking Strategies with ABAC</h2>
+            <p>
+              Master six column masking techniques — from simple redaction and partial reveal to
+              SHA2 pseudonymization, VARIANT masking, STRUCT masking, and combining multiple
+              policies for PCI-DSS and HIPAA compliance.
+            </p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <span class="tag">PII Redaction</span>
+              <span class="tag">SHA2 Pseudonymization</span>
+              <span class="tag orange">PCI-DSS</span>
+              <span class="tag purple">HIPAA</span>
+            </div>
+          </div>
+          <span class="blog-arrow">→</span>
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Built with <a href="https://docs.databricks.com/en/data-governance/unity-catalog/attribute-based-access-control.html" target="_blank">Databricks Unity Catalog ABAC</a> &nbsp;·&nbsp; <a href="https://github.com/AbhiDatabricks/DatabricksABACExamples" target="_blank">GitHub →</a></p>
+    </div>
+  </footer>
+</body>
+</html>
