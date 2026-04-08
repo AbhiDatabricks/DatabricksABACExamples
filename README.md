@@ -74,7 +74,7 @@ Tags required per notebook:
 
 > **Note:** Governed tag creation requires metastore admin or a privilege that allows `POST /api/2.1/tag-policies`. If the API call fails with a 403, ask your metastore admin to create the tags, or use Catalog Explorer → Tags.
 
-### 5. Workspace Permissions
+### 5. Unity Catalog Permissions
 
 The user running the notebooks needs:
 
