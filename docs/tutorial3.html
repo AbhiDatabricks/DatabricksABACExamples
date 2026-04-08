@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Domain Data Governance with ABAC · Databricks ABAC Tutorials</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .blog-post { max-width: 780px; margin: 0 auto; padding: 2.5rem 2rem 5rem; }
+    .post-header { margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+    .post-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent2); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .post-label::before { content: ''; width: 24px; height: 1px; background: var(--accent2); }
+    .post-title { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--text); margin-bottom: 1rem; }
+    .post-desc { font-size: 1.05rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 1.5rem; }
+    .post-meta { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+    .post-meta-item { font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.4rem; }
+    .prose h2 { margin-top: 3rem; margin-bottom: 1rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .prose h2:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+    .prose h3 { margin-top: 2rem; margin-bottom: 0.75rem; color: var(--text); }
+    .prose p { margin-bottom: 1.1rem; }
+    .prose ul, .prose ol { padding-left: 1.5rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .prose li { margin-bottom: 0.35rem; font-size: 0.95rem; }
+
+    .output-block {
+      background: #020508; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.25rem 1.5rem; margin: 1rem 0;
+      font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.7;
+      color: #7dd3a8; overflow-x: auto;
+    }
+    .output-block .out-header { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+    .out-row { white-space: pre; }
+    .out-sep { color: var(--text-dim); }
+    .masked { color: #fb923c; }
+    .visible { color: #86efac; }
+
+    .matrix-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    .matrix { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .matrix th { background: rgba(255,107,53,0.08); color: var(--accent2); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.6rem 0.85rem; border: 1px solid var(--border); font-weight: 700; }
+    .matrix td { padding: 0.6rem 0.85rem; border: 1px solid var(--border); color: var(--text-muted); vertical-align: top; }
+    .matrix td code { font-size: 0.75rem; }
+    .cell-partial { background: rgba(245,158,11,0.06); color: var(--warning); font-family: var(--font-mono); font-size: 0.75rem; }
+    .cell-redact { background: rgba(248,113,113,0.06); color: var(--danger); font-family: var(--font-mono); font-size: 0.75rem; }
+    .cell-visible { background: rgba(34,211,160,0.06); color: var(--success); font-family: var(--font-mono); font-size: 0.75rem; }
+    .cell-policy { background: rgba(0,212,200,0.04); font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); }
+
+    .domain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0; }
+    @media (max-width: 600px) { .domain-grid { grid-template-columns: 1fr; } }
+    .domain-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .domain-card .domain-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .domain-card h4 { font-size: 0.85rem; color: var(--text); margin-bottom: 0.5rem; }
+    .domain-card .col-list { list-style: none; padding: 0; }
+    .domain-card .col-list li { font-family: var(--font-mono); font-size: 0.75rem; padding: 0.2rem 0; display: flex; justify-content: space-between; align-items: center; }
+    .badge-internal { background: rgba(245,158,11,0.1); color: var(--warning); border-radius: 3px; padding: 0.1rem 0.4rem; font-size: 0.68rem; font-weight: 700; }
+    .badge-confidential { background: rgba(248,113,113,0.1); color: var(--danger); border-radius: 3px; padding: 0.1rem 0.4rem; font-size: 0.68rem; font-weight: 700; }
+    .badge-restricted { background: rgba(124,106,247,0.1); color: var(--accent3); border-radius: 3px; padding: 0.1rem 0.4rem; font-size: 0.68rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="index.html">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.78 3.97a.75.75 0 010 1.06L7.81 7l1.97 1.97a.75.75 0 11-1.06 1.06L6.22 7.53a.75.75 0 010-1.06l2.5-2.5a.75.75 0 011.06 0z"/></svg>
+        All Tutorials
+      </a>
+      <span class="nav-title">Tutorial 05 · Multi-Domain Governance</span>
+    </div>
+  </nav>
+
+  <main>
+    <div class="blog-post">
+      <header class="post-header">
+        <div class="post-label">Tutorial 05 · Multi-Domain Governance</div>
+        <h1 class="post-title">Multi-Domain Data Governance<br>with ABAC</h1>
+        <p class="post-desc">
+          Real-world enterprises have data owned by multiple business domains — HR, Finance, Marketing.
+          This tutorial shows how to combine <strong>2D tagging</strong> (domain × sensitivity) with
+          row filtering and column masking so each team sees only their domain's data, at the right sensitivity level.
+          Includes a Telco CPNI compliance example under FCC 47 U.S.C. § 222.
+        </p>
+        <div class="post-meta">
+          <span class="post-meta-item"><span>📦</span> Databricks Runtime 16.4+</span>
+          <span class="post-meta-item"><span>🏷️</span> 2D Tag Matrix</span>
+          <span class="post-meta-item"><span>📡</span> FCC CPNI Compliance</span>
+        </div>
+      </header>
+
+      <div class="prose">
+
+        <h2>The Problem</h2>
+        <p>A single table holds data from multiple business domains. Each domain owns certain columns,
+        and each column has a sensitivity level. The challenge: apply the right mask per domain × sensitivity
+        combination, without policies conflicting with each other.</p>
+
+        <div class="domain-grid">
+          <div class="domain-card">
+            <div class="domain-icon">👥</div>
+            <h4>HR Domain</h4>
+            <ul class="col-list">
+              <li>employee_name <span class="badge-internal">internal</span></li>
+              <li>ssn <span class="badge-confidential">confidential</span></li>
+            </ul>
+          </div>
+          <div class="domain-card">
+            <div class="domain-icon">💰</div>
+            <h4>Finance Domain</h4>
+            <ul class="col-list">
+              <li>cost_center <span class="badge-internal">internal</span></li>
+              <li>salary_band <span class="badge-confidential">confidential</span></li>
+            </ul>
+          </div>
+          <div class="domain-card">
+            <div class="domain-icon">📣</div>
+            <h4>Marketing Domain</h4>
+            <ul class="col-list">
+              <li>email <span class="badge-internal">internal</span></li>
+              <li>customer_list <span class="badge-confidential">confidential</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <h2>The 2D Tagging Pattern</h2>
+        <p>Every sensitive column gets <strong>two tags</strong>: one for which domain owns it,
+        one for how sensitive it is. Policies then match on <strong>AND conditions</strong> — both tags must match.
+        This ensures exactly one policy applies per column per user, eliminating conflicts.</p>
+
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="cm">-- Two tags per column: domain ownership + sensitivity level</span>
+<span class="kw">ALTER TABLE</span> <span class="nn">{catalog}.{schema}.employee_records</span>
+  <span class="kw">ALTER COLUMN</span> employee_name <span class="kw">SET TAGS</span> (<span class="str">'abac_tut_domain'</span> <span class="op">=</span> <span class="str">'hr'</span>, <span class="str">'abac_tut_sensitivity'</span> <span class="op">=</span> <span class="str">'internal'</span>)
+
+<span class="kw">ALTER TABLE</span> <span class="nn">{catalog}.{schema}.employee_records</span>
+  <span class="kw">ALTER COLUMN</span> ssn <span class="kw">SET TAGS</span> (<span class="str">'abac_tut_domain'</span> <span class="op">=</span> <span class="str">'hr'</span>, <span class="str">'abac_tut_sensitivity'</span> <span class="op">=</span> <span class="str">'confidential'</span>)</pre></div>
+        </div>
+
+        <h2>Policy Matrix</h2>
+        <p>Six policies — one per domain × sensitivity combination. Each uses an AND condition and
+        exempts only the owning domain group.</p>
+
+        <div class="matrix-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>internal → partial_mask</th>
+                <th>confidential → redact</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>HR</strong><br><small style="color:var(--text-dim)">EXCEPT abac_tut_hr_team</small></td>
+                <td class="cell-policy">mask_internal_hr</td>
+                <td class="cell-policy">mask_confidential_hr</td>
+              </tr>
+              <tr>
+                <td><strong>Finance</strong><br><small style="color:var(--text-dim)">EXCEPT abac_tut_finance_team</small></td>
+                <td class="cell-policy">mask_internal_finance</td>
+                <td class="cell-policy">mask_confidential_finance</td>
+              </tr>
+              <tr>
+                <td><strong>Marketing</strong><br><small style="color:var(--text-dim)">EXCEPT abac_tut_marketing_team</small></td>
+                <td class="cell-policy">mask_internal_marketing</td>
+                <td class="cell-policy">mask_confidential_marketing</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="cm">-- AND condition ensures exactly one policy matches per column</span>
+<span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">mask_internal_hr</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">COLUMN MASK</span> <span class="fn">{catalog}.{schema}.partial_mask</span>
+<span class="kw">TO</span> <span class="str">`account users`</span> <span class="kw">EXCEPT</span> abac_tut_hr_team, abac_tut_admins
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> (
+  <span class="fn">has_tag_value</span>(<span class="str">'abac_tut_domain'</span>, <span class="str">'hr'</span>)
+  <span class="op">AND</span> <span class="fn">has_tag_value</span>(<span class="str">'abac_tut_sensitivity'</span>, <span class="str">'internal'</span>)
+) <span class="kw">AS</span> m
+<span class="kw">ON COLUMN</span> m</pre></div>
+        </div>
+
+        <h2>Row Filtering + Column Masking Together</h2>
+        <p>Region-based row filters run alongside domain column masks. A US team member in the HR group
+        sees only US rows, and within those rows sees HR columns unmasked but other domains masked.</p>
+
+        <div class="callout info">
+          <span class="callout-icon">💡</span>
+          <div class="callout-body">
+            <h4>Multi-Group Users Get the Union of Exemptions</h4>
+            <p>A user in both <code>abac_tut_hr_team</code> AND <code>abac_tut_finance_team</code>
+            is exempt from HR policies AND Finance policies — they see both domains unmasked.
+            No special configuration needed; ABAC handles this automatically.</p>
+          </div>
+        </div>
+
+        <h3>Query results — EU team (no domain group)</h3>
+        <div class="output-block">
+          <div class="out-header">SELECT * FROM employee_records — running as eu_team member</div>
+<div class="out-row out-sep">+---+-------------+--------------+-----+--------------+-----------+--------------+------+</div>
+<div class="out-row">|id |employee_name|ssn           |email|customer_list |cost_center|salary_band   |region|</div>
+<div class="out-row out-sep">+---+-------------+--------------+-----+--------------+-----------+--------------+------+</div>
+<div class="out-row">|3  |<span class="masked">C***</span>         |<span class="masked">***REDACTED***</span>|<span class="masked">c***</span> |<span class="masked">***REDACTED***</span>|<span class="masked">C***</span>       |<span class="masked">***REDACTED***</span>|eu    |</div>
+<div class="out-row">|4  |<span class="masked">D***</span>         |<span class="masked">***REDACTED***</span>|<span class="masked">d***</span> |<span class="masked">***REDACTED***</span>|<span class="masked">C***</span>       |<span class="masked">***REDACTED***</span>|eu    |</div>
+<div class="out-row out-sep">+---+-------------+--------------+-----+--------------+-----------+--------------+------+</div>
+<div class="out-row" style="color:var(--text-dim)">2 rows (region filter) · all domain columns masked (not in any domain group)</div>
+        </div>
+
+        <h3>Query results — HR team (US region)</h3>
+        <div class="output-block">
+          <div class="out-header">SELECT * FROM employee_records — running as hr_team + us_team member</div>
+<div class="out-row out-sep">+---+---------------+-----------+-----+--------------+-----------+--------------+------+</div>
+<div class="out-row">|id |employee_name  |ssn        |email|customer_list |cost_center|salary_band   |region|</div>
+<div class="out-row out-sep">+---+---------------+-----------+-----+--------------+-----------+--------------+------+</div>
+<div class="out-row">|1  |<span class="visible">Alice Johnson</span>  |<span class="visible">123-45-6789</span>|<span class="masked">a***</span> |<span class="masked">***REDACTED***</span>|<span class="masked">C***</span>       |<span class="masked">***REDACTED***</span>|us    |</div>
+<div class="out-row">|2  |<span class="visible">Bob Smith</span>      |<span class="visible">234-56-7890</span>|<span class="masked">b***</span> |<span class="masked">***REDACTED***</span>|<span class="masked">C***</span>       |<span class="masked">***REDACTED***</span>|us    |</div>
+<div class="out-row">|5  |<span class="visible">Eva Martinez</span>   |<span class="visible">567-89-0123</span>|<span class="masked">e***</span> |<span class="masked">***REDACTED***</span>|<span class="masked">C***</span>       |<span class="masked">***REDACTED***</span>|us    |</div>
+<div class="out-row out-sep">+---+---------------+-----------+-----+--------------+-----------+--------------+------+</div>
+<div class="out-row" style="color:var(--text-dim)">HR columns visible · Finance + Marketing columns masked · EU rows filtered out</div>
+        </div>
+
+        <h2>Why This Pattern Scales</h2>
+        <p>Adding a new domain (e.g., Legal) requires only:</p>
+        <ol style="color:var(--text-muted);padding-left:1.5rem;">
+          <li>Add <code>legal</code> to the <code>abac_tut_domain</code> governed tag values</li>
+          <li>Create group <code>abac_tut_legal_team</code></li>
+          <li>Add two policies: <code>mask_internal_legal</code>, <code>mask_confidential_legal</code></li>
+          <li>Tag the new columns with <code>domain=legal</code> + <code>sensitivity=internal/confidential</code></li>
+        </ol>
+        <p><strong>Zero changes</strong> to existing policies, UDFs, or other domain configurations.</p>
+
+        <hr class="divider">
+
+        <div class="industry-header">
+          <span class="industry-icon">📡</span>
+          <div>
+            <h2 style="border:none;padding:0;margin:0;">Telco — FCC CPNI Compliance</h2>
+            <p>47 U.S.C. § 222 — Customer Proprietary Network Information protection</p>
+          </div>
+        </div>
+
+        <p>Telecommunications providers must protect CPNI — call records, data usage, and billing
+        information that reveals subscriber service patterns. This example applies the same
+        domain × sensitivity pattern across three regulated domains.</p>
+
+        <div class="domain-grid">
+          <div class="domain-card">
+            <div class="domain-icon">📞</div>
+            <h4>CPNI Domain (FCC)</h4>
+            <ul class="col-list">
+              <li>call_records <span class="badge-restricted">restricted</span></li>
+              <li>data_usage_gb <span class="badge-internal">internal</span></li>
+            </ul>
+          </div>
+          <div class="domain-card">
+            <div class="domain-icon">💳</div>
+            <h4>Billing Domain</h4>
+            <ul class="col-list">
+              <li>account_number <span class="badge-restricted">restricted</span></li>
+              <li>monthly_spend <span class="badge-internal">internal</span></li>
+            </ul>
+          </div>
+          <div class="domain-card">
+            <div class="domain-icon">🪪</div>
+            <h4>Identity Domain (PII)</h4>
+            <ul class="col-list">
+              <li>phone_number <span class="badge-restricted">restricted</span></li>
+              <li>billing_address <span class="badge-confidential">confidential</span></li>
+              <li>subscriber_name <span class="badge-internal">internal</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>Service-type row filtering</h3>
+        <p>Each regional team sees only subscribers on their service type. The bundle team sees all service types
+        since they support bundle customers who use both voice and data.</p>
+
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">SQL</span><div class="code-dots"><span></span><span></span><span></span></div></div>
+          <div class="code-body"><pre><span class="cm">-- Bundle team sees all service types</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="nn">{catalog}.{schema}.service_type_filter_bundle</span>(<span class="nn">svc_type</span> <span class="kw">STRING</span>)
+<span class="kw">RETURNS BOOLEAN</span>
+<span class="kw">RETURN</span> svc_type <span class="kw">IN</span> (<span class="str">'bundle'</span>, <span class="str">'voice'</span>, <span class="str">'data'</span>)
+
+<span class="kw">CREATE OR REPLACE POLICY</span> <span class="nn">telco_service_row_filter_bundle</span>
+<span class="kw">ON SCHEMA</span> <span class="nn">{catalog}.{schema}</span>
+<span class="kw">ROW FILTER</span> <span class="fn">{catalog}.{schema}.service_type_filter_bundle</span>
+<span class="kw">TO</span> abac_tut_apac_team
+<span class="kw">FOR TABLES</span>
+<span class="kw">MATCH COLUMNS</span> <span class="fn">has_tag</span>(<span class="str">'telco_service_type'</span>) <span class="kw">AS</span> svc_col
+<span class="kw">USING COLUMNS</span> (svc_col)</pre></div>
+        </div>
+
+        <div class="callout warning">
+          <span class="callout-icon">⚠️</span>
+          <div class="callout-body">
+            <h4>Don't Tag the Row Filter Column with Sensitivity</h4>
+            <p><code>service_type</code> is used as the row filter column. If it is also tagged with a
+            sensitivity tag, a column mask policy will apply to it — and Databricks forbids using a masked column
+            in a row filter. Keep the row filter column tag (<code>telco_service_type</code>) separate from
+            domain/sensitivity tags.</p>
+          </div>
+        </div>
+
+        <h3>CPNI verification — EU team (data service)</h3>
+        <div class="output-block">
+          <div class="out-header">SELECT * FROM subscriber_records — running as eu_team (data service)</div>
+<div class="out-row out-sep">+-------------+---------------+------------+--------------+------------+-------------+--------------+-------------+</div>
+<div class="out-row">|subscriber_id|subscriber_name|phone_number|account_number|service_type|data_usage_gb|call_records  |monthly_spend|</div>
+<div class="out-row out-sep">+-------------+---------------+------------+--------------+------------+-------------+--------------+-------------+</div>
+<div class="out-row">|2            |<span class="masked">B***</span>           |<span class="masked">***-***-0202</span>|<span class="masked">ACCT-****-2-BD</span>|data        |<span class="masked">0.0</span>          |<span class="masked">***REDACTED***</span>|<span class="masked">0.0</span>          |</div>
+<div class="out-row">|5            |<span class="masked">E***</span>           |<span class="masked">***-***-0505</span>|<span class="masked">ACCT-****-5-EH</span>|data        |<span class="masked">0.0</span>          |<span class="masked">***REDACTED***</span>|<span class="masked">0.0</span>          |</div>
+<div class="out-row">|8            |<span class="masked">H***</span>           |<span class="masked">***-***-0808</span>|<span class="masked">ACCT-****-8-HK</span>|data        |<span class="masked">0.0</span>          |<span class="masked">***REDACTED***</span>|<span class="masked">0.0</span>          |</div>
+<div class="out-row out-sep">+-------------+---------------+------------+--------------+------------+-------------+--------------+-------------+</div>
+        </div>
+
+        <h3>Expected results by team</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Team</th><th>Rows</th><th>phone_number</th><th>account_number</th><th>call_records</th><th>monthly_spend</th></tr></thead>
+            <tbody>
+              <tr><td class="td-role">abac_tut_admins</td><td class="td-yes">All 8</td><td class="td-yes">Full</td><td class="td-yes">Full</td><td class="td-yes">Full</td><td class="td-yes">Full</td></tr>
+              <tr><td class="td-role">abac_tut_us_team</td><td>Voice (1,4,7)</td><td class="td-partial">***-***-XXXX</td><td class="td-partial">ACCT-****-XXXX</td><td class="td-no">***REDACTED***</td><td class="td-partial">0.0</td></tr>
+              <tr><td class="td-role">abac_tut_hr_team</td><td>By service</td><td class="td-yes">Full</td><td class="td-partial">ACCT-****-XXXX</td><td class="td-no">***REDACTED***</td><td class="td-partial">0.0</td></tr>
+              <tr><td class="td-role">abac_tut_finance_team</td><td>By service</td><td class="td-partial">***-***-XXXX</td><td class="td-yes">Full</td><td class="td-no">***REDACTED***</td><td class="td-yes">Full</td></tr>
+              <tr><td class="td-role">abac_tut_marketing_team</td><td>By service</td><td class="td-partial">***-***-XXXX</td><td class="td-partial">ACCT-****-XXXX</td><td class="td-yes">Full</td><td class="td-partial">0.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr class="divider">
+
+        <div class="callout success">
+          <span class="callout-icon">✅</span>
+          <div class="callout-body">
+            <h4>Key Learnings</h4>
+            <ul>
+              <li><strong>2D tagging (domain × sensitivity)</strong> is the core pattern — AND conditions in MATCH COLUMNS guarantee exactly one policy per column.</li>
+              <li><strong>Never tag the row filter column with a sensitivity tag</strong> — Databricks forbids masked columns in row filter USING COLUMNS.</li>
+              <li><strong>DOUBLE columns need DOUBLE-returning mask functions</strong> — use <code>ALTER TABLE SET MASK mask_double</code> for numeric columns.</li>
+              <li><strong>Multi-group membership is additive</strong> — a user in two domain groups sees both domains unmasked automatically.</li>
+              <li><strong>Scaling is additive</strong> — new domains only require new policies and group, never changes to existing ones.</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><a href="tutorial2.html">← Column Masking</a> &nbsp;·&nbsp; <a href="index.html">All Tutorials</a> &nbsp;·&nbsp; <a href="https://github.com/AbhiDatabricks/DatabricksABACExamples" target="_blank">GitHub</a></p>
+    </div>
+  </footer>
+</body>
+</html>
